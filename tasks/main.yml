@@ -4,6 +4,7 @@
   service:
     name: docker
     state: started
+  when: ansible_virtualization_type != 'docker'
 
 - include_tasks: cluster.yml
 
