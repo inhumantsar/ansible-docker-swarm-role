@@ -9,12 +9,26 @@
   set_fact:
     docker_node_active: "{{ docker_swarm_state.stdout == 'active' }}"
     docker_node_pending: "{{ docker_swarm_state.stdout == 'pending' }}"
-    docker_swarm_addr: "{{ vars['ansible_' + docker_swarm_network_interface]['ipv4']['address'] }}"
 
-- name: cluster | Init "Swarm Mode" on the first manager
-  command: >
-    docker swarm init --listen-addr {{ docker_swarm_addr }}:{{ docker_swarm_port }}
-    --advertise-addr {{ docker_swarm_addr }}
+
+- name: cluster | Set swarm init command fact when necessary
+  set_fact:
+    docker_swarm_init_cmd: "docker swarm init"
+  when:
+    - not docker_node_active
+    - not docker_node_pending
+
+- name: cluster | Set swarm network address fact when applicable
+  set_fact:
+    docker_swarm_addr: "{{ vars['ansible_' + docker_swarm_network_interface]['ipv4']['address'] }}"
+    docker_swarm_init_cmd: "{{ docker_swarm_init_cmd }} --listen-addr {{ docker_swarm_addr }}:{{ docker_swarm_port }} --advertise-addr {{ docker_swarm_addr }}"
+  when: 
+    - docker_swarm_network_interface
+    - not docker_node_active
+    - not docker_node_pending
+
+- name: cluster | Init "Swarm Mode" on the first manager when necessary
+  command: "{{ docker_swarm_init_cmd }}"
   when:
     - not docker_node_active
     - not docker_node_pending
@@ -41,25 +55,37 @@
     - not docker_node_active
     - not docker_node_pending
 
+- name: cluster | Set worker join command fact
+  set_fact:
+    docker_swarm_join_cmd: "docker swarm join --token {{ docker_swarm_worker_token.stdout }}"
+  when:
+    - not docker_node_active
+    - not docker_node_pending
+    - "'docker_swarm_worker' in group_names"
+
+- name: cluster | Add listen/advertise addresses to worker join command when applicable
+  set_fact: 
+    docker_swarm_join_cmd: "{{ docker_swarm_join_cmd }} --listen-addr {{ docker_swarm_addr }}:{{ docker_swarm_port }} --advertise-addr {{ docker_swarm_addr }}"
+  when: 
+    - docker_swarm_network_interface
+    - not docker_node_active
+    - not docker_node_pending
+
+- name: cluster | Set default swarm addr to localhost if necessary
+  set_fact:
+    docker_swarm_addr: "127.0.0.1"
+  when: 
+    - not docker_swarm_network_interface
+    
 - name: cluster | Join Swarm as a worker
-  command: >
-    docker swarm join
-    --listen-addr {{ docker_swarm_addr }}:{{ docker_swarm_port }}
-    --advertise-addr {{ docker_swarm_addr }}
-    --token "{{ docker_swarm_worker_token.stdout }}"
-    {{ hostvars[docker_swarm_primary_manager_name]['docker_swarm_addr'] }}:{{ docker_swarm_port }}
+  command: "{{ docker_swarm_join_cmd }} {{ hostvars[docker_swarm_primary_manager_name]['docker_swarm_addr'] }}:{{ docker_swarm_port }}"
   when:
     - not docker_node_active
     - not docker_node_pending
     - "'docker_swarm_worker' in group_names"
 
 - name: cluster | Join Swarm as a manager
-  command: >
-    docker swarm join
-    --listen-addr {{ docker_swarm_addr }}:{{ docker_swarm_port }}
-    --advertise-addr {{ docker_swarm_addr }}
-    --token "{{ docker_swarm_manager_token.stdout }}"
-    {{ hostvars[docker_swarm_primary_manager_name]['docker_swarm_addr'] }}:{{ docker_swarm_port }}
+  command: "{{ docker_swarm_join_cmd }} {{ hostvars[docker_swarm_primary_manager_name]['docker_swarm_addr'] }}:{{ docker_swarm_port }}"
   when:
     - not docker_node_active
     - not docker_node_pending

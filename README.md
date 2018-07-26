@@ -14,7 +14,7 @@ Configures a Docker Swarm cluster.
 # Port docker swarm will communicate on
 docker_swarm_port: 2377
 
-# Network interface to use
+# Network interface to use. Unset by default, required for managers.
 docker_swarm_network_interface: "eth0"
 ```
 
