@@ -1,7 +1,7 @@
 ---
 
 - name: cluster | Get swarm state
-  command: "{% raw %}docker info -f '{{ .Swarm.LocalNodeState }}'{% endraw %}"
+  shell: "{% raw %}docker info -f '{{ .Swarm.LocalNodeState }}'{% endraw %}"
   changed_when: false
   register: docker_swarm_state
 
